@@ -42,7 +42,7 @@ jobs:
         working-directory: packages/python
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          uv version "$VERSION" --frozen
+          uv version "$VERSION"   # also updates uv.lock, which the locked sync below checks
           sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" src/tenor_api_client/_version.py
       - run: uv sync --locked
         working-directory: packages/python
