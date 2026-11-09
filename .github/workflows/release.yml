@@ -1,0 +1,51 @@
+name: Release
+
+# Push a tag like v0.2.0: both packages are published at that version.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing + provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Set version
+        working-directory: packages/typescript
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version
+          sed -i "s/export const VERSION = \".*\"/export const VERSION = \"$VERSION\"/" src/version.ts
+      - run: npm ci
+        working-directory: packages/typescript
+      - run: mise run check:ts
+      - run: npm publish --provenance --access public
+        working-directory: packages/typescript
+
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Set version
+        working-directory: packages/python
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          uv version "$VERSION" --frozen
+          sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" src/tenor_api_client/_version.py
+      - run: uv sync --locked
+        working-directory: packages/python
+      - run: mise run check:py
+      - run: uv publish
+        working-directory: packages/python

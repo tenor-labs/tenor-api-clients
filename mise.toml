@@ -1,0 +1,48 @@
+[tools]
+node = "24"
+python = "3.12"
+uv = "0.10"
+
+[tasks.sync]
+description = "Fetch the prod spec into openapi/"
+run = "node scripts/sync-spec.mjs"
+
+[tasks."generate:ts"]
+dir = "packages/typescript"
+run = "npm run generate"
+
+[tasks."generate:py"]
+dir = "packages/python"
+run = "uv run python scripts/generate.py"
+
+[tasks.generate]
+description = "Regenerate both clients from openapi/"
+depends = ["generate:ts", "generate:py"]
+
+[tasks."check:ts"]
+dir = "packages/typescript"
+depends = ["generate:ts"]
+run = "npm run check"
+
+[tasks."check:py"]
+dir = "packages/python"
+depends = ["generate:py"]
+run = [
+  "uv run ruff check .",
+  "uv run ruff format --check .",
+  "uv run pyright",
+  "uv run pytest",
+  "uv build --quiet",
+]
+
+[tasks.check]
+description = "Generate, then typecheck, lint, test and build both clients"
+depends = ["check:ts", "check:py"]
+
+[tasks."test:live"]
+description = "Read-only calls against prod, no key"
+depends = ["generate"]
+run = [
+  "cd packages/typescript && npm run test:live",
+  "cd packages/python && uv run pytest -m live",
+]

@@ -1,0 +1,13 @@
+.DS_Store
+node_modules
+dist
+.build
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+
+# Generated from openapi/ by `mise run generate`
+packages/typescript/src/gen/
+packages/python/src/tenor_api_client/_generated/
+packages/python/src/tenor_api_client/client.py

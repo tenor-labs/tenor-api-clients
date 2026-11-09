@@ -1,0 +1,53 @@
+{
+  "data": [
+    {
+      "chain_id": 8453,
+      "name": "Base",
+      "block_time_ms": 2000,
+      "status": "operational",
+      "capabilities": {
+        "curves": true,
+        "variable_to_fixed": true,
+        "dry_run": true,
+        "safe_tx": true,
+        "rfq": false,
+        "offers": true,
+        "idle_capital": true,
+        "deposit_on_fill": true,
+        "renew": true,
+        "variable": true
+      },
+      "contracts": {
+        "midnight": "0xAdedD8ab6dE832766Fedf0FaC4992E5C4D3EA18A",
+        "morpho_blue": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        "bundler3": "0x6BFd8137e702540E7A42B74178A4a49Ba43920C4",
+        "general_adapter1": "0xb98c948CFA24072e58935BC004a8A7b376AE746A",
+        "tenor_adapter": "0x5675892d48828872fbFD2720489f98b42f48138F",
+        "authorization_adapter": "0xDbb74BF80bD05a1959C8f21e2b821dcFEd87104C",
+        "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+        "mempool": "0xdD6DCE32e21f7b020898a8258dA37355b4017993",
+        "market_making_policy_adapter": "0xAbee861f39a1d294020b1B9a6642B4D0D097526B",
+        "migration_ratifier": "0xf96EC15aC7d0F8fa3560B6DdF9d1F9D54F31DAed",
+        "rate_ratifier_v1": "0x3B2FbA901C88f026BF50A12c8B28484Cd81F9526",
+        "setter_ratifier": "0x800B5F12A61B8198a5a6EfD794Cac6699B294d63",
+        "price_ratifier_v1": "0x08a0e69772315652165921D722B3caAea4C326e6",
+        "ecrecover_ratifier": "0xd6e70365C8E8DDa9a4ca662C07bbE663b017755E",
+        "lend_vault_to_midnight_callback": "0xc0b438Bbf5a8cC4e57C0D81e1818C069e413DdDf",
+        "lend_midnight_to_vault_callback": "0x1A4eD5BC9adC11a7Aa7fCB8f045A7B51604bBC50",
+        "lend_midnight_renewal_callback": "0x93cfC1178C3cc6c315F6505C3A927B7974425188",
+        "borrow_midnight_renewal_callback": "0x1524CB7499735379b34ba3b7C6F150808094d2d2",
+        "borrow_midnight_to_blue_callback": "0x6Bb533CF102d164106A5F83739fd1C0078F3E2DA",
+        "borrow_blue_to_midnight_callback": "0x7d4A92F88c22c6dD31F0fB67F27cAFC8e90f5F18",
+        "borrow_blue_to_midnight_clamp": "0x18D126Dc1B0bf96c4D9363D689C994678db1D5fe",
+        "midnight_supply_collateral_callback": "0x191c821B2681B098E05dd84B1e5433d194c94383",
+        "midnight_supply_vault_shares_callback": "0xAbae3A858f53C7010D07ee930b3a0621adcFBBA8",
+        "midnight_withdraw_vault_shares_callback": "0x519d415bf44C623B8E1226E9959E4548cb289F42",
+        "midnight_withdrawable_callback": "0xba51eCCbA5552837e0745C168044db821D19A931"
+      }
+    }
+  ],
+  "meta": {
+    "request_id": "req_01M70F1R93J6N292S533Q03KKT",
+    "generated_at": "2026-11-09T15:32:54Z"
+  }
+}

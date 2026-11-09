@@ -1,0 +1,29 @@
+name: Spec drift
+
+# Opens a PR when the prod spec no longer matches openapi/. Merge it, then tag a release.
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: npm ci
+        working-directory: packages/typescript
+      - run: uv sync --locked
+        working-directory: packages/python
+      - run: mise run sync && mise run check
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/sync-spec
+          commit-message: "chore: sync the prod spec"
+          title: "chore: sync the prod spec"
+          body: The prod spec changed, and both clients still generate and pass their checks. Review the diff, merge, then tag a release.

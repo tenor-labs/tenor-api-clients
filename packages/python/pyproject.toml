@@ -1,0 +1,56 @@
+[project]
+name = "tenor-api-client"
+version = "0.0.0"
+description = "Python client for the Tenor Trading API"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["httpx2>=2.16,<3", "attrs>=23.1"]
+keywords = ["tenor", "defi", "lending", "fixed-rate", "trading", "api"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Documentation = "https://trading-api.tenor.finance/v1/docs"
+Source = "https://github.com/tenor-labs/tenor-api-clients"
+
+[dependency-groups]
+dev = [
+  "openapi-python-client==0.30.0",
+  "pyright>=1.1.400",
+  "pytest>=8",
+  "ruff>=0.14",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+# Generated, so git-ignored; hatch skips git-ignored files unless listed here.
+artifacts = ["src/tenor_api_client/_generated", "src/tenor_api_client/client.py"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tenor_api_client"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not live'"
+markers = ["live: hits prod, read-only and without a key (pytest -m live)"]
+
+[tool.pyright]
+include = ["src", "tests", "examples", "scripts"]
+exclude = ["src/tenor_api_client/_generated"]
+pythonVersion = "3.11"
+
+[tool.ruff]
+line-length = 110
+extend-exclude = ["src/tenor_api_client/_generated", "*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "RUF100"]
+# Docstrings carry the spec's descriptions as written; the formatter handles code.
+ignore = ["E501"]

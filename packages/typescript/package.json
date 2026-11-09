@@ -1,0 +1,60 @@
+{
+  "name": "@tenor-labs/api-client",
+  "version": "0.0.0",
+  "description": "TypeScript client for the Tenor Trading API",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tenor-labs/tenor-api-clients.git",
+    "directory": "packages/typescript"
+  },
+  "homepage": "https://trading-api.tenor.finance/v1/docs",
+  "keywords": [
+    "tenor",
+    "defi",
+    "lending",
+    "fixed-rate",
+    "trading",
+    "api"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20.3"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "generate": "node scripts/generate.ts",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project unit",
+    "test:live": "vitest run --project live",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "@types/node": "^26.6.6",
+    "tsup": "^9.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0"
+  }
+}
