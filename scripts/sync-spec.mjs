@@ -1,7 +1,7 @@
-// Fetches the prod Trading API spec and keeps what the clients expose.
+// Fetches the prod Tenor API spec and keeps what the clients expose.
 import { writeFileSync } from "node:fs";
 
-const SOURCE = "https://trading-api.tenor.finance/v1/openapi.json";
+const SOURCE = "https://tenor-api.tenor.finance/v1/openapi.json";
 const OUT = new URL("../openapi/trading-api.json", import.meta.url);
 // Docs and liveness routes, of no use to an SDK caller.
 const SKIPPED = new Set(["getOpenApi", "getLlmsTxt", "getLive"]);
@@ -10,7 +10,7 @@ const res = await fetch(SOURCE);
 if (!res.ok) throw new Error(`GET ${SOURCE}: ${res.status}`);
 const spec = await res.json();
 
-spec.servers = spec.servers.filter((s) => s.url === "https://trading-api.tenor.finance");
+spec.servers = spec.servers.filter((s) => s.url === "https://tenor-api.tenor.finance");
 if (spec.servers.length !== 1) throw new Error("prod server missing from the spec");
 
 for (const [path, item] of Object.entries(spec.paths)) {

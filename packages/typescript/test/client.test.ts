@@ -40,7 +40,7 @@ describe("requests", () => {
 
     const { url, init } = calls[0]!;
     expect(url.toString()).toBe(
-      "https://trading-api.tenor.finance/v1/markets/m%2F1?chain_id=8453&include_deprecated=true",
+      "https://tenor-api.tenor.finance/v1/markets/m%2F1?chain_id=8453&include_deprecated=true",
     );
     expect(init.method).toBe("GET");
     expect(init.body).toBeNull();

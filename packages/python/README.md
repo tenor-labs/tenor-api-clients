@@ -1,6 +1,6 @@
 # tenor-api-client
 
-Python client for the [Tenor Trading API](https://trading-api.tenor.finance/v1/docs): quotes and ready-to-sign payloads for lending and borrowing on Tenor, at a fixed or a variable rate. Tenor never signs, sends or holds a key.
+Python client for the [Tenor API](https://tenor-api.tenor.finance/v1/docs): quotes and ready-to-sign payloads for lending and borrowing on Tenor, at a fixed or a variable rate. Tenor never signs, sends or holds a key.
 
 ```sh
 pip install tenor-api-client

@@ -2,7 +2,7 @@ import { TenorApiError, TenorConnectionError } from "./errors.js";
 import { SHAPES } from "./gen/operations.gen.js";
 import { VERSION } from "./version.js";
 
-export const DEFAULT_BASE_URL = "https://trading-api.tenor.finance";
+export const DEFAULT_BASE_URL = "https://tenor-api.tenor.finance";
 
 export interface ClientOptions {
   /** Defaults to the `TENOR_API_KEY` environment variable. Reads and quotes work without one. */

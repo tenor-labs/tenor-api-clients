@@ -14,7 +14,7 @@ from ._generated.types import Response
 from ._version import __version__
 from .errors import TenorApiError, TenorConnectionError
 
-DEFAULT_BASE_URL = "https://trading-api.tenor.finance"
+DEFAULT_BASE_URL = "https://tenor-api.tenor.finance"
 
 _RETRYABLE = {429, 502, 503, 504}
 

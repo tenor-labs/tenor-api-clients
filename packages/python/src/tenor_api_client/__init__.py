@@ -1,4 +1,4 @@
-"""Python client for the Tenor Trading API: https://trading-api.tenor.finance/v1/docs"""
+"""Python client for the Tenor API: https://tenor-api.tenor.finance/v1/docs"""
 
 from . import models
 from ._base import DEFAULT_BASE_URL

@@ -58,7 +58,7 @@ def test_sends_params_by_wire_name_with_the_key() -> None:
     [request] = rec.requests
     assert (
         str(request.url)
-        == "https://trading-api.tenor.finance/v1/markets?chain_id=8453&loan_token=0xabc&listing=listed&include_deprecated=false"
+        == "https://tenor-api.tenor.finance/v1/markets?chain_id=8453&loan_token=0xabc&listing=listed&include_deprecated=false"
     )
     assert request.headers["x-api-key"] == "tnr_sk_test_x"
     assert request.headers["user-agent"] == f"tenor-api-client-python/{__version__}"
