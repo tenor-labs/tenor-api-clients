@@ -1,14 +1,14 @@
 {
   "name": "@tenor-labs/api-client",
   "version": "0.0.0",
-  "description": "TypeScript client for the Tenor Trading API",
+  "description": "TypeScript client for the Tenor API",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tenor-labs/tenor-api-clients.git",
     "directory": "packages/typescript"
   },
-  "homepage": "https://trading-api.tenor.finance/v1/docs",
+  "homepage": "https://tenor-api.tenor.finance/v1/docs",
   "keywords": [
     "tenor",
     "defi",

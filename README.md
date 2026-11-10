@@ -1,6 +1,6 @@
 # Tenor API clients
 
-Official clients for the [Tenor Trading API](https://trading-api.tenor.finance/v1/docs).
+Official clients for the [Tenor API](https://tenor-api.tenor.finance/v1/docs).
 
 | Language   | Package                                                                          | Docs                                       |
 | ---------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
@@ -12,7 +12,7 @@ Both clients are generated from the API's OpenAPI spec, so they cover every endp
 ## How it works
 
 ```
-               Trading API
+                Tenor API
            GET /v1/openapi.json
                     │
                     │  mise run sync

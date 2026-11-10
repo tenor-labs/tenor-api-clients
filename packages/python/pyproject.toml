@@ -1,7 +1,7 @@
 [project]
 name = "tenor-api-client"
 version = "0.0.0"
-description = "Python client for the Tenor Trading API"
+description = "Python client for the Tenor API"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -14,7 +14,7 @@ classifiers = [
 ]
 
 [project.urls]
-Documentation = "https://trading-api.tenor.finance/v1/docs"
+Documentation = "https://tenor-api.tenor.finance/v1/docs"
 Source = "https://github.com/tenor-labs/tenor-api-clients"
 
 [dependency-groups]
