@@ -118,8 +118,8 @@ class BaseClient:
         headers: Mapping[str, str] | None = None,
         transport: httpx2.BaseTransport | None = None,
     ) -> None:
-        """``api_key`` defaults to the ``TENOR_API_KEY`` environment variable. Reads and quotes work
-        without one. ``timeout`` is per attempt, in seconds."""
+        """``api_key`` defaults to the ``TENOR_API_KEY`` environment variable. A key is
+        optional and raises the rate limits. ``timeout`` is per attempt, in seconds."""
         self.base_url = base_url.rstrip("/")
         self._client = AuthenticatedClient(base_url=self.base_url, token="")
         self._client.set_httpx_client(
@@ -159,8 +159,8 @@ class AsyncBaseClient:
         headers: Mapping[str, str] | None = None,
         transport: httpx2.AsyncBaseTransport | None = None,
     ) -> None:
-        """``api_key`` defaults to the ``TENOR_API_KEY`` environment variable. Reads and quotes work
-        without one. ``timeout`` is per attempt, in seconds."""
+        """``api_key`` defaults to the ``TENOR_API_KEY`` environment variable. A key is
+        optional and raises the rate limits. ``timeout`` is per attempt, in seconds."""
         self.base_url = base_url.rstrip("/")
         self._client = AuthenticatedClient(base_url=self.base_url, token="")
         self._client.set_async_httpx_client(

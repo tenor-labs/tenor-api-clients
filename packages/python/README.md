@@ -48,7 +48,7 @@ asyncio.run(main())
 
 ```python
 Tenor(
-    api_key="tnr_sk_live_…",  # defaults to $TENOR_API_KEY; reads and quotes work without one
+    api_key="tnr_sk_live_…",  # defaults to $TENOR_API_KEY; optional, raises the rate limits
     timeout=30.0,             # per attempt, in seconds
     max_retries=2,            # 429 (after Retry-After), 502, 503, 504 and network errors
     headers={"X-Request-Id": "my-trace-id"},

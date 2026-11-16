@@ -37,7 +37,7 @@ const { data: quote } = await tenor.getQuote({
 
 ```ts
 new Tenor({
-  apiKey: "tnr_sk_live_…", // defaults to process.env.TENOR_API_KEY; reads and quotes work without one
+  apiKey: "tnr_sk_live_…", // defaults to process.env.TENOR_API_KEY; optional, raises the rate limits
   timeout: 30_000,         // per attempt, in ms
   maxRetries: 2,           // 429 (after Retry-After), 502, 503, 504 and network errors
   headers: { "X-Request-Id": "my-trace-id" },
