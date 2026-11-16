@@ -5,7 +5,7 @@ import { VERSION } from "./version.js";
 export const DEFAULT_BASE_URL = "https://tenor-api.tenor.finance";
 
 export interface ClientOptions {
-  /** Defaults to the `TENOR_API_KEY` environment variable. Reads and quotes work without one. */
+  /** Defaults to the `TENOR_API_KEY` environment variable. Optional: a key raises the rate limits. */
   apiKey?: string;
   baseUrl?: string;
   /** Per attempt, in milliseconds. */

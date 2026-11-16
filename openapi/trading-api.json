@@ -4,7 +4,7 @@
     "title": "Tenor API",
     "version": "1",
     "summary": "Quotes and ready-to-sign payloads for lending and borrowing on Tenor, at a fixed or a variable rate. Tenor never signs, sends or holds a key: your wallet signs and sends every payload.",
-    "description": "Lend and borrow on Tenor, at a fixed or a variable rate, using your non-custodial wallet of choice. Tenor never signs, sends or holds a key.\n\n1. **Find a market.** `GET /v1/markets` returns every market with its open maturities.\n2. **Quote.** `POST /v1/quotes` gives the rate for a size right now.\n3. **Prepare.** `POST /v1/lend/prepare`, or the prepare of any other action, returns the transactions to sign, already simulated and checked.\n4. **Sign and send** the transactions from your wallet.\n5. **Track.** `GET /v1/transactions/{tx_hash}` reports when the transaction is included in a block and what it filled.\n\nReads and quotes are public. Prepares need an API key.\n\n## Conventions\n\n| Convention | Rule | Example |\n| --- | --- | --- |\n| Amounts | Integer strings in the token's smallest unit, never rounded | `\"1000000\"` = 1 USDC |\n| Rates | Annual rate (APR) as a decimal string, in fields ending in `_rate` | `\"0.052\"` = 5.2% |\n| Times | Unix seconds. A field ending in `_at` is a moment, and one ending in `_s` is a duration. `meta.generated_at` is the only ISO 8601 timestamp | `matures_at`, `time_to_maturity_s` |\n| Chains | `chain_id` on every chain-scoped request: in the query on GET, in the body on POST | `chain_id=8453` |\n| IDs | Opaque strings, unique within a chain | `maturity_id` |\n| Addresses | Accepted in any case, returned checksummed | `0x833589fCD6…` |\n| Paging | Offers, positions and fills are paged with `cursor` and `limit` (default 50, max 200). `meta.next_cursor` is `null` on the last page. Catalog lists (chains, tokens, markets, maturities, curves, balances) are short and aren't paged | `limit=50` |\n| Options | Opt-in flags start with `include_` | `include_onchain=true` |\n| Client IDs | A `client_id` passed on a prepare is echoed back and logged | |\n| Compatibility | Fields, enum values and error codes are only ever added. Ignore unknown fields, and handle unknown values | |\n\n## Glossary\n\n| Term | Meaning |\n| --- | --- |\n| market | A loan token and the collateral tokens borrowers can post for it. A market groups every maturity of the pair and its variable rate |\n| maturity | One fixed term of a market, at fixed rates, ending at `matures_at` |\n| variable rate | A market's floating rate, with no term. Lent and borrowed under `/v1/variable/*`, by `market_id` |\n| deprecated | A market or maturity that Tenor is phasing out. Tenor no longer lists it and its liquidity runs off, but it still trades |\n| best rate / mid rate | The best lend or borrow rate available now, and the midpoint between the two |\n| term structure | The best rates on every maturity of a market, side by side |\n| market depth | The open offers on a maturity, grouped by rate |\n| liquidity | The amount that can be lent or borrowed at the current rates |\n| settlement fee / continuous fee | A fee taken from each fill, and a fee that accrues on a lend until maturity |\n| principal | The amount that changes hands now |\n| amount at maturity | The amount owed, or paid back, at maturity |\n| quote | The rate for a size right now. A quote is a preview and commits to nothing |\n| offer | A firm commitment to lend or borrow at a rate, open until it fills, expires or is cancelled |\n| ladder | Several offers posted together at stepped rates or sizes |\n| staircase | Offers posted together in back-to-back time windows, so that together they hold one rate as maturity nears. Listed as one entry |\n| group / OCO | Offers that share their fills. Cancelling a group cancels all of its offers. With `oco` (one cancels the other), a ladder shares one group, so a fill on one offer reduces the others |\n| idle capital | The capital behind a lend offer, earning the variable rate until a taker fills the offer |\n| lending vault | The contract that holds a market's variable lends, idle capital included (`onchain.lending_vault` in `GET /v1/markets`) |\n| deposit on fill | A borrow offer whose collateral stays in the wallet until the offer fills |\n| passive quoting curve | A maker's lend and exit rates by time to maturity, quoted on every maturity of a market |\n| exit rate | The rate at which a curve resells the maker's fixed lends (`resell_rate`) |\n| position | A fixed or variable lend or borrow held by a wallet |\n| LLTV / LTV | The loan-to-value at which a borrow can be liquidated, and the borrow's current loan-to-value |\n| liquidation price | The collateral price at which a borrow becomes liquidatable |\n| cost basis / P&L | The cost of opening a position, and its profit or loss since |\n\n| Action | Description |\n| --- | --- |\n| lend / borrow | Open or add to a fixed-rate position on a maturity |\n| repay | Pay back a borrow, early by taking offers or in full |\n| resell | Exit a lend before maturity by reselling it to another lender |\n| redeem | Collect a lend from what borrowers have repaid, usually at maturity |\n| take | Accept one specific offer |\n| manage | Add or withdraw collateral, or set auto-renewal, without changing the debt |\n| renew | Roll a position into a later maturity of the same market |\n| migrate | Move a variable borrow to a fixed rate |\n| post / cancel | Post offers, or cancel them |\n| clear | Stop a curve from quoting |\n\n## Authentication\n\n- Reads and quotes are public. Prepares, simulations, readiness and `GET /v1/access` need an API key in the `X-Api-Key` header.\n- A key carries scopes: `read` for keyed reads and `trade` to prepare payloads. Each route states the scope it needs.\n- Keys starting with `tnr_sk_test_` are test keys. They work like live keys, but every prepare is a dry run.\n- A key sent on a public route identifies the caller. An invalid key is rejected there too.\n- `GET /v1/access` checks a key. A revoked key stops working within 30 seconds.\n- Keep keys on your servers. Never ship a key to a browser or an app.\n\n## Payloads\n\nEvery `POST …/prepare` returns a payload for one wallet: the transactions to sign, a one-line `summary`, and a `preview` of their effects.\n\nDeclare how the wallet signs in `wallet_kind`, and the payload is built for that wallet. If the wallet's code doesn't match, the payload carries a `WALLET_KIND_MISMATCH` warning. A smart account isn't deployed until its first operation, so `smart_account` is never flagged.\n\n| `wallet_kind` | Send | Signing window |\n| --- | --- | --- |\n| `eoa` | Each of `steps` in order, waiting for each receipt; or `requires`, then `transaction` | 5 min |\n| `delegated_eoa` (EIP-7702) | `calls` in one `wallet_sendCalls`, or as an `eoa` | 5 min |\n| `safe` | `safe_tx` as one Safe transaction (MultiSendCallOnly, delegate call) | 30 min |\n| `smart_account` | `calls` in one user operation | 30 min |\n\n- **Checks.** Each payload is simulated as returned, from the wallet, at the latest block, and then checked: approvals match the size (except a curve's setup, which approves the vault's shares in full to the curve's callback, for every curve on that vault), the rate and the deadline are bounded onchain, and every call goes to Tenor's contracts. If a check fails, the prepare returns an error and no calldata.\n- **Validity.** `limit_rate` and the deadline are enforced onchain. A payload included in a block after `validity.until_at` reverts, so it never fills at a worse rate. If you can't sign before `until_at` minus `validity.recommended_margin_s`, prepare again.\n- **Approvals.** `requires` lists the approvals and the one-time authorization the wallet still needs, as of the prepare. Wait until each payload is included in a block before you prepare the next one.\n- **Fresh quotes.** Each prepare quotes again and never reuses an earlier quote. `preview` is the result of the simulation: the size, the rate with fees, the offers filled and the wallet's balance changes.\n- **No quote.** A payload that fills no offers (a redeem, a direct repay, a manage, a variable action) has no `quote` and no `limit_rate`. Its `bounds` and `validity.until_at` are `null`.\n- **Dry run.** `dry_run: true` runs the same quote, simulation and checks, with the wallet funded in the simulation. It works for a wallet that holds nothing yet. The response has `status: preview_only`, the full `preview` and `requires`, and nothing to send. Test keys always dry run.\n- **Sanctions.** Wallets on the OFAC sanctions list get `403 WALLET_BLOCKED`. The key that prepares doesn't matter.\n- **Debugging.** `include_onchain: true` adds `onchain`: the payload's calls decoded by their ABIs, nested bundles included, with the result of each call in the simulation and the events it emitted. `onchain` follows the contracts' ABIs and changes with them, so the compatibility rule in Conventions doesn't cover it.\n\n## Responses\n\n- A success is `{ \"data\": …, \"meta\": { \"request_id\", \"generated_at\", … } }`.\n- An error is `{ \"error\": { \"code\", \"category\", \"treatment\", \"message\", \"details\", \"request_id\" } }`.\n- Branch on `code`. For an unknown code, act on `treatment`: `fix_request`, `refetch_state`, `fund_account` or `retry`.\n- A payload can carry `warnings`, which never block it. Show the `message` of an unknown warning.\n- Every response carries `X-Request-Id`. Send your own (up to 128 of `A-Z a-z 0-9 . _ : -`) to match our logs with yours.\n\n## Rate limits\n\nEach route counts against one of three budgets, so a burst of quotes can't block a cancel. With a key, budgets are per key. Without one, they are per IP address.\n\n| Budget | Routes | With a key | Without |\n| --- | --- | --- | --- |\n| `read` | Reads | 1200 / 60 s | 25 / 1 s, 150 / 10 s, 1000 / 60 s |\n| `compute` | Quotes, takeable offers, simulations, readiness, prepares | 120 / 60 s | 30 / 60 s |\n| `cancel` | Cancels and curve clears | 600 / 60 s | Key only |\n\n- Treat limits as approximate: each server counts on its own, and requests are spread across servers.\n- Every response carries `X-RateLimit-Policy`, `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`.\n- Past a limit, requests get `429 RATE_LIMITED`, with `Retry-After` in seconds. Wait that long before retrying.\n- After 30 failed key checks in a minute, an IP address gets `429` on every request that sends a key.\n\n## Caching\n\n- Slow-changing reads (catalog, market state, market depth) send `Cache-Control` with a `max-age`, and an `ETag`. Revalidate with `If-None-Match`: an unchanged response is a `304` with no body.\n- Quotes, payloads and anything about one wallet are `no-store`. Don't cache them.\n- A transaction is `no-store` until it is final and indexed. After that, it may be cached for a minute.\n- `meta.generated_at` is when the data was read, which can be up to `max-age` ago.\n\n## Live data\n\nMarket depth and quotes stream over a WebSocket at `wss://router.tenor.finance/socket` (Phoenix Channels), on the `orderbook:{maturity_id}` and `quotes:{maturity_id}` topics, updated every block. Use the stream to know when to quote again. Prepare through this API, which checks every payload before you sign it.\n"
+    "description": "Lend and borrow on Tenor, at a fixed or a variable rate, using your non-custodial wallet of choice. Tenor never signs, sends or holds a key.\n\n1. **Find a market.** `GET /v1/markets` returns every market with its open maturities.\n2. **Quote.** `POST /v1/quotes` gives the rate for a size right now.\n3. **Prepare.** `POST /v1/lend/prepare`, or the prepare of any other action, returns the transactions to sign, already simulated and checked.\n4. **Sign and send** the transactions from your wallet.\n5. **Track.** `GET /v1/transactions/{tx_hash}` reports when the transaction is included in a block and what it filled.\n\nNo API key is needed. A key raises the rate limits.\n\n## Conventions\n\n| Convention | Rule | Example |\n| --- | --- | --- |\n| Amounts | Integer strings in the token's smallest unit, never rounded | `\"1000000\"` = 1 USDC |\n| Rates | Annual rate (APR) as a decimal string, in fields ending in `_rate` | `\"0.052\"` = 5.2% |\n| Times | Unix seconds. A field ending in `_at` is a moment, and one ending in `_s` is a duration. `meta.generated_at` is the only ISO 8601 timestamp | `matures_at`, `time_to_maturity_s` |\n| Chains | `chain_id` on every chain-scoped request: in the query on GET, in the body on POST | `chain_id=8453` |\n| IDs | Opaque strings, unique within a chain | `maturity_id` |\n| Addresses | Accepted in any case, returned checksummed | `0x833589fCD6…` |\n| Paging | Offers, positions and fills are paged with `cursor` and `limit` (default 50, max 200). `meta.next_cursor` is `null` on the last page. Catalog lists (chains, tokens, markets, maturities, curves, balances) are short and aren't paged | `limit=50` |\n| Options | Opt-in flags start with `include_` | `include_onchain=true` |\n| Client IDs | A `client_id` passed on a prepare is echoed back and logged | |\n| Compatibility | Fields, enum values and error codes are only ever added. Ignore unknown fields, and handle unknown values | |\n\n## Glossary\n\n| Term | Meaning |\n| --- | --- |\n| market | A loan token and the collateral tokens borrowers can post for it. A market groups every maturity of the pair and its variable rate |\n| maturity | One fixed term of a market, at fixed rates, ending at `matures_at` |\n| variable rate | A market's floating rate, with no term. Lent and borrowed under `/v1/variable/*`, by `market_id` |\n| deprecated | A market or maturity that Tenor is phasing out. Tenor no longer lists it and its liquidity runs off, but it still trades |\n| best rate / mid rate | The best lend or borrow rate available now, and the midpoint between the two |\n| term structure | The best rates on every maturity of a market, side by side |\n| market depth | The open offers on a maturity, grouped by rate |\n| liquidity | The amount that can be lent or borrowed at the current rates |\n| settlement fee / continuous fee | A fee taken from each fill, and a fee that accrues on a lend until maturity |\n| principal | The amount that changes hands now |\n| amount at maturity | The amount owed, or paid back, at maturity |\n| quote | The rate for a size right now. A quote is a preview and commits to nothing |\n| offer | A firm commitment to lend or borrow at a rate, open until it fills, expires or is cancelled |\n| ladder | Several offers posted together at stepped rates or sizes |\n| staircase | Offers posted together in back-to-back time windows, so that together they hold one rate as maturity nears. Listed as one entry |\n| group / OCO | Offers that share their fills. Cancelling a group cancels all of its offers. With `oco` (one cancels the other), a ladder shares one group, so a fill on one offer reduces the others |\n| idle capital | The capital behind a lend offer, earning the variable rate until a taker fills the offer |\n| lending vault | The contract that holds a market's variable lends, idle capital included (`onchain.lending_vault` in `GET /v1/markets`) |\n| deposit on fill | A borrow offer whose collateral stays in the wallet until the offer fills |\n| passive quoting curve | A maker's lend and exit rates by time to maturity, quoted on every maturity of a market |\n| exit rate | The rate at which a curve resells the maker's fixed lends (`resell_rate`) |\n| position | A fixed or variable lend or borrow held by a wallet |\n| LLTV / LTV | The loan-to-value at which a borrow can be liquidated, and the borrow's current loan-to-value |\n| liquidation price | The collateral price at which a borrow becomes liquidatable |\n| cost basis / P&L | The cost of opening a position, and its profit or loss since |\n\n| Action | Description |\n| --- | --- |\n| lend / borrow | Open or add to a fixed-rate position on a maturity |\n| repay | Pay back a borrow, early by taking offers or in full |\n| resell | Exit a lend before maturity by reselling it to another lender |\n| redeem | Collect a lend from what borrowers have repaid, usually at maturity |\n| take | Accept one specific offer |\n| manage | Add or withdraw collateral, or set auto-renewal, without changing the debt |\n| renew | Roll a position into a later maturity of the same market |\n| migrate | Move a variable borrow to a fixed rate |\n| post / cancel | Post offers, or cancel them |\n| clear | Stop a curve from quoting |\n\n## Authentication\n\n- Every route works without an API key, except `GET /v1/access`. Without a key, rate limits are per IP address.\n- With a key in the `X-Api-Key` header, rate limits are per key, and higher.\n- A key carries scopes: `read` for readiness and `trade` to prepare payloads. A key sent to a route must carry the scope the route states.\n- Keys starting with `tnr_sk_test_` are test keys. They work like live keys, but every prepare is a dry run.\n- An invalid key is rejected on every route, never ignored.\n- `GET /v1/access` checks a key. A revoked key stops working within 30 seconds.\n- Keep keys on your servers. Never ship a key to a browser or an app.\n\n## Payloads\n\nEvery `POST …/prepare` returns a payload for one wallet: the transactions to sign, a one-line `summary`, and a `preview` of their effects.\n\nDeclare how the wallet signs in `wallet_kind`, and the payload is built for that wallet. If the wallet's code doesn't match, the payload carries a `WALLET_KIND_MISMATCH` warning. A smart account isn't deployed until its first operation, so `smart_account` is never flagged.\n\n| `wallet_kind` | Send | Signing window |\n| --- | --- | --- |\n| `eoa` | Each of `steps` in order, waiting for each receipt; or `requires`, then `transaction` | 5 min |\n| `delegated_eoa` (EIP-7702) | `calls` in one `wallet_sendCalls`, or as an `eoa` | 5 min |\n| `safe` | `safe_tx` as one Safe transaction (MultiSendCallOnly, delegate call) | 30 min |\n| `smart_account` | `calls` in one user operation | 30 min |\n\n- **Checks.** Each payload is simulated as returned, from the wallet, at the latest block, and then checked: approvals match the size (except a curve's setup, which approves the vault's shares in full to the curve's callback, for every curve on that vault), the rate and the deadline are bounded onchain, and every call goes to Tenor's contracts. If a check fails, the prepare returns an error and no calldata.\n- **Validity.** `limit_rate` and the deadline are enforced onchain. A payload included in a block after `validity.until_at` reverts, so it never fills at a worse rate. If you can't sign before `until_at` minus `validity.recommended_margin_s`, prepare again.\n- **Approvals.** `requires` lists the approvals and the one-time authorization the wallet still needs, as of the prepare. Wait until each payload is included in a block before you prepare the next one.\n- **Fresh quotes.** Each prepare quotes again and never reuses an earlier quote. `preview` is the result of the simulation: the size, the rate with fees, the offers filled and the wallet's balance changes.\n- **No quote.** A payload that fills no offers (a redeem, a direct repay, a manage, a variable action) has no `quote` and no `limit_rate`. Its `bounds` and `validity.until_at` are `null`.\n- **Dry run.** `dry_run: true` runs the same quote, simulation and checks, with the wallet funded in the simulation. It works for a wallet that holds nothing yet. The response has `status: preview_only`, the full `preview` and `requires`, and nothing to send. Test keys always dry run.\n- **Sanctions.** Wallets on the OFAC sanctions list get `403 WALLET_BLOCKED`. The key that prepares doesn't matter.\n- **Debugging.** `include_onchain: true` adds `onchain`: the payload's calls decoded by their ABIs, nested bundles included, with the result of each call in the simulation and the events it emitted. `onchain` follows the contracts' ABIs and changes with them, so the compatibility rule in Conventions doesn't cover it.\n\n## Responses\n\n- A success is `{ \"data\": …, \"meta\": { \"request_id\", \"generated_at\", … } }`.\n- An error is `{ \"error\": { \"code\", \"category\", \"treatment\", \"message\", \"details\", \"request_id\" } }`.\n- Branch on `code`. For an unknown code, act on `treatment`: `fix_request`, `refetch_state`, `fund_account` or `retry`.\n- A payload can carry `warnings`, which never block it. Show the `message` of an unknown warning.\n- Every response carries `X-Request-Id`. Send your own (up to 128 of `A-Z a-z 0-9 . _ : -`) to match our logs with yours.\n\n## Rate limits\n\nEach route counts against one of four budgets, so a burst of quotes can't block a prepare, and neither can block a cancel. With a key, budgets are per key. Without one, they are per IP address.\n\n| Budget | Routes | With a key | Without |\n| --- | --- | --- | --- |\n| `read` | Reads | 1200 / 60 s | 25 / 1 s, 150 / 10 s, 1000 / 60 s |\n| `compute` | Quotes and takeable offers | 120 / 60 s | 30 / 60 s |\n| `prepare` | Prepares, simulations and readiness | 120 / 60 s | 15 / 60 s |\n| `cancel` | Cancels and curve clears | 600 / 60 s | 30 / 60 s |\n\n- Treat limits as approximate: each server counts on its own, and requests are spread across servers.\n- Every response carries `X-RateLimit-Policy`, `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`.\n- Past a limit, requests get `429 RATE_LIMITED`, with `Retry-After` in seconds. Wait that long before retrying.\n- After 30 failed key checks in a minute, an IP address gets `429` on every request that sends a key.\n\n## Caching\n\n- Slow-changing reads (catalog, market state, market depth) send `Cache-Control` with a `max-age`, and an `ETag`. Revalidate with `If-None-Match`: an unchanged response is a `304` with no body.\n- Quotes, payloads and anything about one wallet are `no-store`. Don't cache them.\n- A transaction is `no-store` until it is final and indexed. After that, it may be cached for a minute.\n- `meta.generated_at` is when the data was read, which can be up to `max-age` ago.\n\n## Live data\n\nMarket depth and quotes stream over a WebSocket at `wss://router.tenor.finance/socket` (Phoenix Channels), on the `orderbook:{maturity_id}` and `quotes:{maturity_id}` topics, updated every block. Use the stream to know when to quote again. Prepare through this API, which checks every payload before you sign it.\n"
   },
   "servers": [
     {
@@ -1578,11 +1578,12 @@
       "get": {
         "operationId": "getReadiness",
         "summary": "Check a wallet's readiness",
-        "description": "Checks that takers can fill the wallet's open offers, read onchain at `meta.block_number`: the authorizations the offers rely on, and the allowances and balances that cover the amount they can pull. An open offer fills later with no prepare, and silently stops filling when the wallet falls short.\n\nGaps a transaction can fix are listed in `missing`, built for `wallet_kind` and simulated from the wallet. `missing` is empty once those transactions are included in a block. Gaps that only funding fixes are in `shortfalls`. Prepares carry their own approvals, so a lend, a borrow or a post doesn't need readiness first.\n\nNeeds an API key with the `read` scope.",
+        "description": "Checks that takers can fill the wallet's open offers, read onchain at `meta.block_number`: the authorizations the offers rely on, and the allowances and balances that cover the amount they can pull. An open offer fills later with no prepare, and silently stops filling when the wallet falls short.\n\nGaps a transaction can fix are listed in `missing`, built for `wallet_kind` and simulated from the wallet. `missing` is empty once those transactions are included in a block. Gaps that only funding fixes are in `shortfalls`. Prepares carry their own approvals, so a lend, a borrow or a post doesn't need readiness first.\n\nNo API key needed. A key sent must carry the `read` scope.",
         "tags": [
           "Offers"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -1898,18 +1899,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/borrow/prepare": {
       "post": {
         "operationId": "prepareBorrow",
         "summary": "Prepare a borrow",
-        "description": "Borrows at a fixed rate on one maturity. `deposit_collateral` deposits collateral in the same payload, and `renewal` sets the market's auto-renewal.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Borrows at a fixed rate on one maturity. `deposit_collateral` deposits collateral in the same payload, and `renewal` sets the market's auto-renewal.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Fixed rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -2493,7 +2495,7 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/chains": {
@@ -3004,11 +3006,12 @@
       "post": {
         "operationId": "prepareClearCurve",
         "summary": "Prepare to clear a curve",
-        "description": "Clears the wallet's curve on a market in one call, so the curve stops quoting at the next refresh. The setup stays, so the next `POST /v1/curves/set/prepare` with the same window is one call. `disable: true` also removes the lend and exit setup.\n\nThe allowance and the idle capital are left as they are. A clear that would change nothing gets `404 CURVE_NOT_FOUND`: the wallet has no curve quoting on the market, or with `disable`, no curve or setup either. An OTC market clears like any other, since its curve may date from before it was delisted. Clears count against the `cancel` budget, apart from quotes and prepares.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Clears the wallet's curve on a market in one call, so the curve stops quoting at the next refresh. The setup stays, so the next `POST /v1/curves/set/prepare` with the same window is one call. `disable: true` also removes the lend and exit setup.\n\nThe allowance and the idle capital are left as they are. A clear that would change nothing gets `404 CURVE_NOT_FOUND`: the wallet has no curve quoting on the market, or with `disable`, no curve or setup either. An OTC market clears like any other, since its curve may date from before it was delisted. Clears count against the `cancel` budget, apart from quotes and prepares.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Passive quoting"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -3779,11 +3782,12 @@
       "post": {
         "operationId": "prepareCurve",
         "summary": "Prepare to set a curve",
-        "description": "Sets the wallet's passive quoting curve on a market. The curve's `points` quote every maturity of the market, with no transaction per quote. When the setup is in place and the first and last points don't move, the payload is one call that only updates the rates (`curve.mode: reprice`). A set identical to the stored curve is still written.\n\nOtherwise (`enable`), the payload also writes the curve's setup: the authorizations, the lend and exit setup, and an approval of all the vault's shares to the curve's callback. Every curve on the vault shares that approval, the one approval the API makes for more than the payload moves. `fund` deposits idle capital into the curve's vault in the same payload. The setup always writes the last-Friday-of-month renewal cadence. The API takes no cadence, and every `enable` writes that cadence again. Without idle capital, the curve quotes nothing, and the payload carries a `CURVE_UNFUNDED` warning.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Sets the wallet's passive quoting curve on a market. The curve's `points` quote every maturity of the market, with no transaction per quote. When the setup is in place and the first and last points don't move, the payload is one call that only updates the rates (`curve.mode: reprice`). A set identical to the stored curve is still written.\n\nOtherwise (`enable`), the payload also writes the curve's setup: the authorizations, the lend and exit setup, and an approval of all the vault's shares to the curve's callback. Every curve on the vault shares that approval, the one approval the API makes for more than the payload moves. `fund` deposits idle capital into the curve's vault in the same payload. The setup always writes the last-Friday-of-month renewal cadence. The API takes no cadence, and every `enable` writes that cadence again. Without idle capital, the curve quotes nothing, and the payload carries a `CURVE_UNFUNDED` warning.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Passive quoting"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -4211,18 +4215,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/lend/prepare": {
       "post": {
         "operationId": "prepareLend",
         "summary": "Prepare a lend",
-        "description": "Lends at a fixed rate on one maturity. With `post_rest`, the part the open offers can't fill at `limit_rate` is posted as one lend offer at that rate, in the same payload.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Lends at a fixed rate on one maturity. With `post_rest`, the part the open offers can't fill at `limit_rate` is posted as one lend offer at that rate, in the same payload.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Fixed rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -4818,18 +4823,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/manage/prepare": {
       "post": {
         "operationId": "prepareManage",
         "summary": "Prepare a collateral or auto-renewal change",
-        "description": "Deposits or withdraws collateral on one maturity, sets the market's auto-renewal, or both. The debt doesn't change. Pass at most one of `deposit_collateral` and `withdraw_collateral`.\n\nTo borrow more or repay part of a borrow, use `/v1/borrow/prepare` (with `deposit_collateral`) or `/v1/repay/prepare` (with `withdraw_collateral`).\n\nNeeds an API key with the `trade` scope.",
+        "description": "Deposits or withdraws collateral on one maturity, sets the market's auto-renewal, or both. The debt doesn't change. Pass at most one of `deposit_collateral` and `withdraw_collateral`.\n\nTo borrow more or repay part of a borrow, use `/v1/borrow/prepare` (with `deposit_collateral`) or `/v1/repay/prepare` (with `withdraw_collateral`).\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Fixed rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -5293,7 +5299,7 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/markets": {
@@ -7602,11 +7608,12 @@
       "post": {
         "operationId": "prepareMigrate",
         "summary": "Prepare a migration to a fixed rate",
-        "description": "Moves the wallet's whole variable borrow on `market_id` to a fixed rate on `target_maturity_id`, with its collateral. `preview.source` is the variable borrow the payload closes, and the rest of `preview` is the fixed borrow.\n\nIn `spot` mode, the payload repays the variable borrow in full, moves the collateral and borrows on the maturity, bounded onchain by `limit_rate` and `deadline_at`. Any amount the repay didn't use comes off the new debt. In `limit` mode, the payload posts an offer at `limit_rate` until `expires_at` (`offers`), sized above the debt to cover the interest that accrues until then. Each fill moves its share of the borrow.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Moves the wallet's whole variable borrow on `market_id` to a fixed rate on `target_maturity_id`, with its collateral. `preview.source` is the variable borrow the payload closes, and the rest of `preview` is the fixed borrow.\n\nIn `spot` mode, the payload repays the variable borrow in full, moves the collateral and borrows on the maturity, bounded onchain by `limit_rate` and `deadline_at`. Any amount the repay didn't use comes off the new debt. In `limit` mode, the payload posts an offer at `limit_rate` until `expires_at` (`offers`), sized above the debt to cover the interest that accrues until then. Each fill moves its share of the borrow.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Fixed rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -8214,7 +8221,7 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/offers": {
@@ -8546,11 +8553,12 @@
       "post": {
         "operationId": "prepareCancelOffers",
         "summary": "Prepare to cancel offers",
-        "description": "Cancels the wallet's offers. Pass exactly one of `offer_ids`, `groups`, `maturity_id`, `market_id`, or `all: true` for every offer on the chain. Cancels count against the `cancel` budget, apart from quotes and prepares.\n\nWhen every live offer of a group is cancelled, the whole group ends, and none of its offers can be taken again. Cancelling only some of a group's offers, such as one offer of an `oco` group, revokes the Merkle root they were signed under. Any other offer signed under that root ends too: `cancels.offer_ids` lists it, and a `CANCELS_MORE` warning names it. One payload ends at most 256 groups and roots. Past that, a `MORE_TO_CANCEL` warning gives the number left, to cancel once this payload is included in a block.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Cancels the wallet's offers. Pass exactly one of `offer_ids`, `groups`, `maturity_id`, `market_id`, or `all: true` for every offer on the chain. Cancels count against the `cancel` budget, apart from quotes and prepares.\n\nWhen every live offer of a group is cancelled, the whole group ends, and none of its offers can be taken again. Cancelling only some of a group's offers, such as one offer of an `oco` group, revokes the Merkle root they were signed under. Any other offer signed under that root ends too: `cancels.offer_ids` lists it, and a `CANCELS_MORE` warning names it. One payload ends at most 256 groups and roots. Past that, a `MORE_TO_CANCEL` warning gives the number left, to cancel once this payload is included in a block.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Offers"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -8949,11 +8957,12 @@
       "post": {
         "operationId": "prepareOffers",
         "summary": "Prepare to post offers",
-        "description": "Posts firm offers for the wallet: one offer, or a ladder of up to 20 at stepped rates and sizes, on one maturity or several. Each offer holds its `rate` onchain for its whole window. No tokens move until a taker fills an offer, except `collateral` deposited with a borrow post.\n\nA lend post approves the protocol for the most its offers can pull. The post still prepares when the wallet holds less, counting what its other open offers reserve, with an `OFFER_UNFUNDED` warning. A borrow post whose collateral can't back its offers prepares with a `COLLATERAL_SHORTFALL` warning. A post can't cross the wallet's own open offers on the other side of a maturity (`422 SELF_CROSS`). Tenor checks against its records, about a block behind the chain.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Posts firm offers for the wallet: one offer, or a ladder of up to 20 at stepped rates and sizes, on one maturity or several. Each offer holds its `rate` onchain for its whole window. No tokens move until a taker fills an offer, except `collateral` deposited with a borrow post.\n\nA lend post approves the protocol for the most its offers can pull. The post still prepares when the wallet holds less, counting what its other open offers reserve, with an `OFFER_UNFUNDED` warning. A borrow post whose collateral can't back its offers prepares with a `COLLATERAL_SHORTFALL` warning. A post can't cross the wallet's own open offers on the other side of a maturity (`422 SELF_CROSS`). Tenor checks against its records, about a block behind the chain.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Offers"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -9417,7 +9426,7 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/offers/{offer_id}": {
@@ -10512,11 +10521,12 @@
       "post": {
         "operationId": "prepareRedeem",
         "summary": "Prepare a redeem",
-        "description": "Redeems a lend one for one, from the amount borrowers have repaid into the maturity. Repaid funds are usually there after maturity, or earlier when borrowers repay early. When only part of the lend is redeemable, the payload redeems that part, and a `PARTIAL_REDEEM` warning gives the amount left.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Redeems a lend one for one, from the amount borrowers have repaid into the maturity. Repaid funds are usually there after maturity, or earlier when borrowers repay early. When only part of the lend is redeemable, the payload redeems that part, and a `PARTIAL_REDEEM` warning gives the amount left.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Fixed rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -10944,18 +10954,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/renew/prepare": {
       "post": {
         "operationId": "prepareRenew",
         "summary": "Prepare a renewal",
-        "description": "Rolls the wallet's whole position on `maturity_id` into `target_maturity_id`, a later maturity of the same market. A borrow moves its debt and collateral, and a lend its amount at maturity. Tenor reads the side onchain.\n\nIn `spot` mode, the payload renews now, bounded onchain on the target by `limit_rate` and `deadline_at`. A borrow first repays its debt early by taking offers, for less than the amount owed where offers allow (`preview.source.bought_back`), and repays the rest in full. A lend renews from the amount borrowers have repaid into its maturity, so usually after the maturity. In `limit` mode, the payload posts an offer at `limit_rate` until `expires_at` (`offers`). Each fill rolls its share of the position.\n\n`preview.source` is the position the payload closes, and the rest of `preview` is the target. To renew automatically, set `renewal` on `/v1/borrow/prepare` or `/v1/manage/prepare`.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Rolls the wallet's whole position on `maturity_id` into `target_maturity_id`, a later maturity of the same market. A borrow moves its debt and collateral, and a lend its amount at maturity. Tenor reads the side onchain.\n\nIn `spot` mode, the payload renews now, bounded onchain on the target by `limit_rate` and `deadline_at`. A borrow first repays its debt early by taking offers, for less than the amount owed where offers allow (`preview.source.bought_back`), and repays the rest in full. A lend renews from the amount borrowers have repaid into its maturity, so usually after the maturity. In `limit` mode, the payload posts an offer at `limit_rate` until `expires_at` (`offers`). Each fill rolls its share of the position.\n\n`preview.source` is the position the payload closes, and the rest of `preview` is the target. To renew automatically, set `renewal` on `/v1/borrow/prepare` or `/v1/manage/prepare`.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Fixed rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -11563,18 +11574,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/repay/prepare": {
       "post": {
         "operationId": "prepareRepay",
         "summary": "Prepare a repay",
-        "description": "Repays a borrow on one maturity. Before maturity, the payload repays early by taking offers, bounded onchain by `limit_rate` and `deadline_at`. With `direct`, or after maturity, the payload pays the full amount owed at maturity, with no quote, `limit_rate` or deadline. `withdraw_collateral` takes collateral back in the same payload, after the repay.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Repays a borrow on one maturity. Before maturity, the payload repays early by taking offers, bounded onchain by `limit_rate` and `deadline_at`. With `direct`, or after maturity, the payload pays the full amount owed at maturity, with no quote, `limit_rate` or deadline. `withdraw_collateral` takes collateral back in the same payload, after the repay.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Fixed rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -12170,18 +12182,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/resell/prepare": {
       "post": {
         "operationId": "prepareResell",
         "summary": "Prepare a resell",
-        "description": "Exits a lend before maturity by reselling it into the open lend offers. After maturity, redeem the lend instead.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Exits a lend before maturity by reselling it into the open lend offers. After maturity, redeem the lend instead.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Fixed rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -12765,18 +12778,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/simulate": {
       "post": {
         "operationId": "simulate",
         "summary": "Simulate calls before signing",
-        "description": "Simulates and checks calls right before the wallet signs them: a prepare's `calls` held for a while, or calls a Safe or custodian edited. The calls run in order, from the wallet, at the latest block. The response is always a 200, and `status` is `ok`, `reverts` or `unsafe`.\n\nCalls to contracts outside Tenor's are marked `foreign` and named in a `FOREIGN_CALL` warning. Foreign calls leave `status` at `ok`, so check for the warning too. At least one call must go to one of Tenor's contracts: any `GET /v1/chains` lists but `morpho_blue` and `permit2`. `meta.block_number` is the simulated block.\n\nNeeds an API key.",
+        "description": "Simulates and checks calls right before the wallet signs them: a prepare's `calls` held for a while, or calls a Safe or custodian edited. The calls run in order, from the wallet, at the latest block. The response is always a 200, and `status` is `ok`, `reverts` or `unsafe`.\n\nCalls to contracts outside Tenor's are marked `foreign` and named in a `FOREIGN_CALL` warning. Foreign calls leave `status` at `ok`, so check for the warning too. At least one call must go to one of Tenor's contracts: any `GET /v1/chains` lists but `morpho_blue` and `permit2`. `meta.block_number` is the simulated block.\n\nNo API key needed.",
         "tags": [
           "Transactions"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -13050,18 +13064,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/take/prepare": {
       "post": {
         "operationId": "prepareTake",
         "summary": "Prepare a take",
-        "description": "Takes one offer, given by its `offer_id`, and fills against that offer alone. Taking a lend offer borrows, with `deposit_collateral` in the same payload or against collateral already posted. Taking a borrow offer lends.\n\nSizing and limits work as for a borrow or a lend. The quote and the payload use only that offer, with no fallback to other offers. A wallet can't take its own offer, or the side opposite a position it holds on that maturity. `409 OFFER_STATE_CHANGED` means the wallet can't take the offer for its whole signing window: the offer was filled or cancelled, is reserved for another taker, or expires too soon.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Takes one offer, given by its `offer_id`, and fills against that offer alone. Taking a lend offer borrows, with `deposit_collateral` in the same payload or against collateral already posted. Taking a borrow offer lends.\n\nSizing and limits work as for a borrow or a lend. The quote and the payload use only that offer, with no fallback to other offers. A wallet can't take its own offer, or the side opposite a position it holds on that maturity. `409 OFFER_STATE_CHANGED` means the wallet can't take the offer for its whole signing window: the offer was filled or cancelled, is reserved for another taker, or expires too soon.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Fixed rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -13662,7 +13677,7 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/tokens": {
@@ -14223,11 +14238,12 @@
       "post": {
         "operationId": "prepareVariableBorrow",
         "summary": "Prepare a variable borrow",
-        "description": "Borrows `size.principal` at the market's variable rate, against collateral already posted or against `deposit_collateral`, deposited first in the same payload. The first variable borrow also needs a one-time authorization, listed in `requires`.\n\nA size the variable rate can't lend right now gets `422 INSUFFICIENT_LIQUIDITY`. A size the collateral can't carry gets `422 INSUFFICIENT_COLLATERAL`, with `details.max_principal`.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Borrows `size.principal` at the market's variable rate, against collateral already posted or against `deposit_collateral`, deposited first in the same payload. The first variable borrow also needs a one-time authorization, listed in `requires`.\n\nA size the variable rate can't lend right now gets `422 INSUFFICIENT_LIQUIDITY`. A size the collateral can't carry gets `422 INSUFFICIENT_COLLATERAL`, with `details.max_principal`.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Variable rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -14643,18 +14659,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/variable/lend/prepare": {
       "post": {
         "operationId": "prepareVariableLend",
         "summary": "Prepare a variable lend",
-        "description": "Deposits `size.principal` into the market's lending vault at the variable rate. The deposit earns the variable rate until withdrawn, and funds the wallet's idle-capital offers and passive quoting curve on the market.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Deposits `size.principal` into the market's lending vault at the variable rate. The deposit earns the variable rate until withdrawn, and funds the wallet's idle-capital offers and passive quoting curve on the market.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Variable rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -15046,18 +15063,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/variable/manage/prepare": {
       "post": {
         "operationId": "prepareVariableManage",
         "summary": "Prepare a variable collateral change",
-        "description": "Deposits or withdraws collateral for the wallet's variable borrow, without changing the debt. Pass exactly one of `deposit_collateral` and `withdraw_collateral`.\n\nTo borrow more or repay part of the debt, use `/v1/variable/borrow/prepare` or `/v1/variable/repay/prepare`.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Deposits or withdraws collateral for the wallet's variable borrow, without changing the debt. Pass exactly one of `deposit_collateral` and `withdraw_collateral`.\n\nTo borrow more or repay part of the debt, use `/v1/variable/borrow/prepare` or `/v1/variable/repay/prepare`.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Variable rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -15485,18 +15503,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/variable/repay/prepare": {
       "post": {
         "operationId": "prepareVariableRepay",
         "summary": "Prepare a variable repay",
-        "description": "Repays `size.principal` of the wallet's variable borrow, or the whole borrow when `size` is left out. A full repay approves a little more than the debt, for the interest that accrues until the payload is included in a block, and returns the unused part. `withdraw_collateral` takes collateral back after the repay. Leave out both `size` and the withdrawal's `amount` to close the borrow.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Repays `size.principal` of the wallet's variable borrow, or the whole borrow when `size` is left out. A full repay approves a little more than the debt, for the interest that accrues until the payload is included in a block, and returns the unused part. `withdraw_collateral` takes collateral back after the repay. Leave out both `size` and the withdrawal's `amount` to close the borrow.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Variable rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -15924,18 +15943,19 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     },
     "/v1/variable/withdraw/prepare": {
       "post": {
         "operationId": "prepareVariableWithdraw",
         "summary": "Prepare a variable withdrawal",
-        "description": "Withdraws `size.principal` from the wallet's variable lend, or the whole lend when `size` is left out. The vault can only pay out the part variable borrowers haven't borrowed. When that falls short, `422 INSUFFICIENT_LIQUIDITY` gives the amount available now.\n\nA withdrawal can leave the wallet's idle-capital offers short (`IDLE_CAPITAL_SHORTFALL`). They then fill only up to the remaining amount, unless `cancel_idle_offers` cancels them first.\n\nNeeds an API key with the `trade` scope.",
+        "description": "Withdraws `size.principal` from the wallet's variable lend, or the whole lend when `size` is left out. The vault can only pay out the part variable borrowers haven't borrowed. When that falls short, `422 INSUFFICIENT_LIQUIDITY` gives the amount available now.\n\nA withdrawal can leave the wallet's idle-capital offers short (`IDLE_CAPITAL_SHORTFALL`). They then fill only up to the remaining amount, unless `cancel_idle_offers` cancels them first.\n\nNo API key needed. A key sent must carry the `trade` scope.",
         "tags": [
           "Variable rate"
         ],
         "security": [
+          {},
           {
             "ApiKey": []
           }
@@ -16351,7 +16371,7 @@
             }
           }
         },
-        "x-rate-limit-class": "compute"
+        "x-rate-limit-class": "prepare"
       }
     }
   },
@@ -16383,7 +16403,7 @@
                 "trade"
               ]
             },
-            "description": "The key's scopes: `read` for keyed reads and `trade` to prepare payloads.",
+            "description": "The key's scopes: `read` for readiness and `trade` to prepare payloads.",
             "examples": [
               [
                 "read",
@@ -16425,6 +16445,7 @@
                   "enum": [
                     "read",
                     "compute",
+                    "prepare",
                     "cancel",
                     "rfq"
                   ]
@@ -26940,7 +26961,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-Api-Key",
-        "description": "The organization's API key. Keys starting with `tnr_sk_test_` are test keys, and every prepare made with a test key is a dry run."
+        "description": "The organization's API key. Only `GET /v1/access` needs one: elsewhere a key raises the rate limits from per IP address to per key. Keys starting with `tnr_sk_test_` are test keys, and every prepare made with a test key is a dry run."
       }
     }
   }

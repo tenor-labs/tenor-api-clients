@@ -1,6 +1,6 @@
 import { Tenor, TenorApiError } from "@tenor-labs/api-client";
 
-// Reads and quotes work without a key. Prepares need one: TENOR_API_KEY or { apiKey }.
+// No key needed. A key (TENOR_API_KEY or { apiKey }) raises the rate limits.
 const tenor = new Tenor();
 
 const { data: markets } = await tenor.listMarkets({ chainId: 8453 });
